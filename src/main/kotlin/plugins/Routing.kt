@@ -9,10 +9,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.util.*
 import kotlinx.html.*
-import model.User
 import org.bson.types.ObjectId
-import repo.Repo
 import repo.UserRepo
+import plugins.authentication.BasicAuthentication
+import plugins.authentication.password
+import plugins.authentication.userID
 
 fun Application.configureRouting(userRepo: UserRepo) {
 
@@ -159,9 +160,21 @@ fun Application.configureRouting(userRepo: UserRepo) {
         }
 
         route("v1") {
+            install(BasicAuthentication) {
+                realm = "Access to v1"
+            }
             route("users") {
                 get {
-                    call.respond(HttpStatusCode.OK, userRepo.all())
+                    val users = userRepo.all()
+
+                    val client = users.find { it.name == call.attributes[userID] }
+
+                    if (client == null || client.password != call.attributes[password]) {
+                        call.response.headers.append("WWW-Authenticate", "Basic realm=\"Access to v1\"")
+                        call.respond(HttpStatusCode.Unauthorized)
+                    } else {
+                        call.respond(HttpStatusCode.OK, users)
+                    }
                 }
 
                 post {
