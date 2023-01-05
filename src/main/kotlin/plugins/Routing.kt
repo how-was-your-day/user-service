@@ -12,8 +12,6 @@ import kotlinx.html.*
 import org.bson.types.ObjectId
 import repo.UserRepo
 import plugins.authentication.BasicAuthentication
-import plugins.authentication.password
-import plugins.authentication.userID
 
 fun Application.configureRouting(userRepo: UserRepo) {
 
@@ -160,21 +158,18 @@ fun Application.configureRouting(userRepo: UserRepo) {
         }
 
         route("v1") {
-            install(BasicAuthentication) {
+            install(BasicAuthentication.plugin) {
                 realm = "Access to v1"
+                authorizer = { username, password ->
+                    val user = userRepo.findByUsername(username)
+                    user != null && user.password == password
+                }
             }
             route("users") {
                 get {
                     val users = userRepo.all()
 
-                    val client = users.find { it.name == call.attributes[userID] }
-
-                    if (client == null || client.password != call.attributes[password]) {
-                        call.response.headers.append("WWW-Authenticate", "Basic realm=\"Access to v1\"")
-                        call.respond(HttpStatusCode.Unauthorized)
-                    } else {
-                        call.respond(HttpStatusCode.OK, users)
-                    }
+                    call.respond(HttpStatusCode.OK, users)
                 }
 
                 post {
